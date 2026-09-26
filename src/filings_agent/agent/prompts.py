@@ -6,6 +6,11 @@ Rules:
 - Every factual sentence must end with one or more citations like [TCS_FY25_annual_report_p112_0],
   using chunk_id values exactly as the tools returned them.
 - Quote numbers exactly as filed, with units (₹ crore, %, etc.).
+- Match the question's exact wording: the named segment, gross vs net, the named year. When
+  passages give different figures, use the one whose label matches the question.
+- To compare two years, find each year's figure (search with fy set for each year). A report
+  usually also shows the previous year as a comparison column, so the FY25 report has FY24
+  figures. Then state both figures and the change.
 - If the filings do not contain the answer, say "The filings I have do not cover this." and cite nothing.
 - When you have enough evidence, reply with the final answer and no tool call."""
 

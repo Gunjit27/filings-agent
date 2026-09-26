@@ -42,21 +42,38 @@ QUESTIONS = [
 ]
 
 
-def build_index(path: Path) -> None:
+def load_stubs():
     spec = importlib.util.spec_from_file_location("stub_embedder", STUB / "stub_embedder.py")
     stub = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(stub)
-    emb = stub.StubEmbedder()
+    return stub
+
+
+def build_index(path: Path, chunks=CHUNKS, hybrid: bool = True) -> None:
+    stub = load_stubs()
+    emb, sparse = stub.StubEmbedder(), stub.StubSparseEmbedder()
     client = QdrantClient(path=str(path))
     client.create_collection(
-        "filings", vectors_config=models.VectorParams(size=64, distance=models.Distance.COSINE)
+        settings.qdrant_collection,
+        vectors_config=models.VectorParams(size=64, distance=models.Distance.COSINE),
+        sparse_vectors_config={"bm25": models.SparseVectorParams(modifier=models.Modifier.IDF)}
+        if hybrid
+        else None,
     )
+
+    def vector(text):
+        dense = next(emb.embed([text])).tolist()
+        if not hybrid:
+            return dense
+        s = next(sparse.embed([text]))
+        return {"": dense, "bm25": models.SparseVector(indices=s.indices.tolist(), values=s.values.tolist())}
+
     client.upsert(
-        "filings",
+        settings.qdrant_collection,
         points=[
             models.PointStruct(
                 id=i,
-                vector=next(emb.embed([text])).tolist(),
+                vector=vector(text),
                 payload={
                     "chunk_id": cid,
                     "doc_id": cid.rsplit("_p", 1)[0],
@@ -67,7 +84,7 @@ def build_index(path: Path) -> None:
                     "text": text,
                 },
             )
-            for i, (cid, company, fy, page, text) in enumerate(CHUNKS)
+            for i, (cid, company, fy, page, text) in enumerate(chunks)
         ],
     )
     client.close()
@@ -155,3 +172,32 @@ def test_last_step_answers_even_if_model_calls_a_tool(tmp_path, monkeypatch):
     result = asyncio.run(run())
     assert result["citations"] == ["TCS_FY26_annual_report_p45_0"]
     assert "none" not in seen  # never tool_choice="none", which Groq rejects for gpt-oss
+
+
+def test_empty_answer_is_asked_again(tmp_path, monkeypatch):
+    """An answer with no text (all reasoning, no content) gets one more try."""
+    from filings_agent.agent.graph import agent_session, ask
+    from filings_agent.agent.prompts import ANSWER_NOW
+
+    build_index(tmp_path / "qdrant_local")
+    monkeypatch.setenv("DATA_DIR", str(tmp_path / "data"))
+    monkeypatch.setenv("QDRANT_URL", "")
+    monkeypatch.setenv("PYTHONPATH", os.pathsep.join([str(STUB), os.environ.get("PYTHONPATH", "")]))
+    monkeypatch.setattr(settings, "llm_rpm", 0)
+    efforts = []
+
+    async def silent_once(model, messages, **kwargs):
+        efforts.append(kwargs.get("reasoning_effort"))
+        if messages[-1]["content"] == ANSWER_NOW:
+            return response("The filings I have do not cover this.")
+        return response(content=None)
+
+    monkeypatch.setattr(litellm, "acompletion", silent_once)
+
+    async def run():
+        async with agent_session() as graph:
+            return await ask(graph, "What was TCS headcount in FY26?")
+
+    result = asyncio.run(run())
+    assert result["answer"] == "The filings I have do not cover this."
+    assert efforts == [None, "low"]

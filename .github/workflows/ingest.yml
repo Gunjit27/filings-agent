@@ -35,7 +35,16 @@ jobs:
       - uses: actions/cache@v4
         with:
           path: /home/runner/.cache/fastembed
-          key: fastembed-bge-small-en-v1.5
+          key: fastembed-${{ hashFiles('src/filings_agent/config.py') }}
       - run: uv sync
       - run: uv run python -m filings_agent.ingest.download
       - run: uv run python -m filings_agent.ingest.index ${{ inputs.reindex && '--reindex' || '' }}
+      # Retrieval-only scores (no LLM calls): the current setup, then without the
+      # reranker, then the old dense-only index, so each change's effect is visible.
+      - name: Check retrieval
+        run: |
+          uv run python -m evals.retrieval | tee -a "$GITHUB_STEP_SUMMARY"
+          RERANK_MODEL= uv run python -m evals.retrieval | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: Compare with the dense-only index
+        continue-on-error: true
+        run: QDRANT_COLLECTION=filings RERANK_MODEL= uv run python -m evals.retrieval | tee -a "$GITHUB_STEP_SUMMARY"

@@ -11,12 +11,18 @@ mcp = MCPServer("filings")
 def search_filings(
     query: str, company: str | None = None, fy: str | None = None, doc_type: str | None = None
 ) -> list[dict]:
-    """Semantic search over Indian company filings.
+    """Search Indian company filings (keyword + semantic).
 
-    company: company id such as TCS, INFY, RELIANCE. fy: FY25 or FY26.
+    company: company id such as TCS, INFY, RELIANCE. fy: fiscal year of the report, FY25 or
+    FY26. A report also gives the previous year's figures, so FY24 numbers are in FY25 reports.
     Returns chunks with chunk_id, doc_id, page and text. Cite chunk_id in answers.
     """
-    return retrieval.search(query, company=company, fy=fy, doc_type=doc_type)
+    hits = retrieval.search(query, company=company, fy=fy, doc_type=doc_type)
+    if not hits and fy:
+        # No report for that year is indexed (say FY24): search every year instead, since the
+        # next year's report carries it as the comparison column. chunk_ids name the year.
+        hits = retrieval.search(query, company=company, doc_type=doc_type)
+    return hits
 
 
 @mcp.tool()

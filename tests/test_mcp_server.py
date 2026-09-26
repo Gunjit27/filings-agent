@@ -50,3 +50,22 @@ def test_agent_session_passes_env_to_server(monkeypatch):
     except RuntimeError:
         pass
     assert seen["env"]["QDRANT_URL"] == "https://example.qdrant"
+
+
+def test_search_falls_back_when_no_report_for_that_year(monkeypatch):
+    """FY24 figures live in FY25 reports, so a search for an unindexed year still finds them."""
+    from filings_agent import mcp_server, retrieval
+
+    calls = []
+
+    def fake_search(query, company=None, fy=None, doc_type=None):
+        calls.append(fy)
+        return [] if fy == "FY24" else [{"chunk_id": "ICICIBANK_FY25_annual_report_p9_0"}]
+
+    monkeypatch.setattr(retrieval, "search", fake_search)
+    hits = mcp_server.search_filings("total deposits", company="ICICIBANK", fy="FY24")
+    assert hits == [{"chunk_id": "ICICIBANK_FY25_annual_report_p9_0"}]
+    assert calls == ["FY24", None]
+    calls.clear()
+    mcp_server.search_filings("total deposits", company="ICICIBANK", fy="FY25")
+    assert calls == ["FY25"]

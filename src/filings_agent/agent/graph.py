@@ -83,8 +83,11 @@ def fit_context(messages: list[dict], max_chars: int) -> list[dict]:
 
 def build_graph(session: ClientSession, tools: list[dict]):
     async def agent(state: State) -> dict:
-        # On the last allowed step, make the model answer with what it has.
-        last_step = state["steps"] + 1 >= settings.max_agent_steps
+        # On the last allowed step, or once over the token budget, answer with what it has.
+        budget = settings.question_token_budget
+        last_step = state["steps"] + 1 >= settings.max_agent_steps or (
+            budget > 0 and llm.used_tokens() >= budget
+        )
         resp = await llm.acompletion(
             messages=fit_context(state["messages"], settings.max_context_chars),
             tools=tools,

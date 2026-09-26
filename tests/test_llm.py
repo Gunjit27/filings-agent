@@ -106,3 +106,11 @@ def test_retry_delay_parses_groq_hints():
 
 def test_daily_quota_is_not_retried():
     assert not llm.retryable(Exception("on tokens per day (TPD): Limit 200000. Try again in 3m"))
+
+
+def test_used_tokens_counts_inside_track_only():
+    assert llm.used_tokens() == 0
+    with llm.track("q") as usage:
+        usage["prompt_tokens"], usage["completion_tokens"] = 900, 100
+        assert llm.used_tokens() == 1000
+    assert llm.used_tokens() == 0

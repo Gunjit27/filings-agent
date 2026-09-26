@@ -58,6 +58,12 @@ def track(trace_name: str, session_id: str | None = None):
         _trace.reset(trace_token)
 
 
+def used_tokens() -> int:
+    """Tokens spent so far inside the current track() block (0 outside one)."""
+    usage = _usage.get()
+    return usage["prompt_tokens"] + usage["completion_tokens"] if usage else 0
+
+
 def _add_wait(seconds: float) -> None:
     """Count time spent pacing or backing off, so reported latency can exclude it."""
     usage = _usage.get()

@@ -22,6 +22,9 @@ class Settings(BaseSettings):
     # agent's context is trimmed to this many characters (~4K tokens); 0 disables trimming.
     max_context_chars: int = 14000
     max_answer_tokens: int = 2048
+    # Once a question has used this many tokens, the agent must answer with what it has.
+    # Keeps a 20-question eval within Groq's free 200K tokens/day; 0 disables it.
+    question_token_budget: int = 9000
     llm_retries: int = 4  # retries after a 429 or connection error, waiting as the provider asks
     llm_rpm: int = 25  # under Groq's free-tier per-minute limit; 0 disables pacing
 

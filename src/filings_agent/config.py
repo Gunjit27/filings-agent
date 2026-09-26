@@ -28,3 +28,13 @@ settings = Settings()
 def load_companies() -> list[dict]:
     with open(ROOT / "config" / "companies.yaml") as f:
         return yaml.safe_load(f)["companies"]
+
+
+def report_url(doc_id: str, page: int | None = None) -> str | None:
+    """Public URL of a filing, opened at a page when given (PDF viewers honour #page=)."""
+    company, fy, _ = doc_id.split("_", 2)
+    for c in load_companies():
+        if c["id"] == company and c["annual_reports"].get(fy):
+            url = c["annual_reports"][fy]
+            return f"{url}#page={page}" if page else url
+    return None

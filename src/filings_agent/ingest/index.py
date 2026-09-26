@@ -1,12 +1,10 @@
 """Embed parsed chunks and upsert them into Qdrant."""
 
-import uuid
-
 from qdrant_client import models
 
 from filings_agent.config import settings
 from filings_agent.ingest.parse import parse_pdf
-from filings_agent.retrieval import embedder, list_documents, qdrant
+from filings_agent.retrieval import embedder, list_documents, point_id, qdrant
 
 BATCH = 64
 
@@ -43,7 +41,7 @@ def index_all(reindex: bool = False) -> None:
                 settings.qdrant_collection,
                 points=[
                     models.PointStruct(
-                        id=str(uuid.uuid5(uuid.NAMESPACE_URL, c.chunk_id)),
+                        id=point_id(c.chunk_id),
                         vector=v.tolist(),
                         payload=c.payload(),
                     )

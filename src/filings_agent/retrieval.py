@@ -1,5 +1,6 @@
 """Vector search over indexed filings."""
 
+import uuid
 from functools import lru_cache
 
 from fastembed import TextEmbedding
@@ -74,3 +75,15 @@ def list_documents(company: str | None = None) -> list[str]:
         seen.update(p.payload["doc_id"] for p in points)
         if offset is None:
             return sorted(seen)
+
+
+def point_id(chunk_id: str) -> str:
+    """Qdrant point id for a chunk; the indexer derives it the same way."""
+    return str(uuid.uuid5(uuid.NAMESPACE_URL, chunk_id))
+
+
+def get_chunks(chunk_ids: list[str]) -> list[dict]:
+    """Payloads for the given chunk ids, in the order asked for; unknown ids are skipped."""
+    points = qdrant().retrieve(settings.qdrant_collection, ids=[point_id(c) for c in chunk_ids])
+    by_id = {p.payload["chunk_id"]: p.payload for p in points}
+    return [by_id[c] for c in chunk_ids if c in by_id]

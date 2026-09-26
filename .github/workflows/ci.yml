@@ -5,6 +5,8 @@ env:
 
 on:
   pull_request:
+    # A docs-only change can't move the score, so it doesn't spend eval quota.
+    paths-ignore: ["**.md", "docs/**", "LICENSE"]
   push:
     branches: [main]
 

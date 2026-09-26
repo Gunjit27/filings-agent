@@ -120,3 +120,38 @@ def test_eval_runs_end_to_end(tmp_path, monkeypatch):
     assert "[TCS_FY26_annual_report_p45_0]" in rows["t1"]["answer"]
     assert rows["t2"]["correct"]
     assert "| **all** | 2 | 100% |" in (tmp_path / "results" / "summary.md").read_text()
+
+
+def test_last_step_answers_even_if_model_calls_a_tool(tmp_path, monkeypatch):
+    """gpt-oss may call a tool when told to answer; the agent must still finish with text."""
+    from filings_agent.agent.graph import agent_session, ask
+    from filings_agent.agent.prompts import ANSWER_NOW
+
+    build_index(tmp_path / "qdrant_local")
+    monkeypatch.setenv("DATA_DIR", str(tmp_path / "data"))
+    monkeypatch.setenv("QDRANT_URL", "")
+    monkeypatch.setenv("PYTHONPATH", os.pathsep.join([str(STUB), os.environ.get("PYTHONPATH", "")]))
+    monkeypatch.setattr(settings, "llm_rpm", 0)
+    monkeypatch.setattr(settings, "max_agent_steps", 2)
+    seen = []
+
+    async def stubborn(model, messages, **kwargs):
+        seen.append(kwargs.get("tool_choice"))
+        call = {
+            "id": f"call_{len(seen)}",
+            "type": "function",
+            "function": {"name": "search_filings", "arguments": '{"query": "TCS headcount"}'},
+        }
+        if messages[-1]["content"] == ANSWER_NOW:
+            return response("TCS had 607,979 employees [TCS_FY26_annual_report_p45_0].", [call])
+        return response(tool_calls=[call])
+
+    monkeypatch.setattr(litellm, "acompletion", stubborn)
+
+    async def run():
+        async with agent_session() as graph:
+            return await ask(graph, "What was TCS headcount in FY26?")
+
+    result = asyncio.run(run())
+    assert result["citations"] == ["TCS_FY26_annual_report_p45_0"]
+    assert "none" not in seen  # never tool_choice="none", which Groq rejects for gpt-oss

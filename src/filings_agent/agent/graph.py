@@ -13,7 +13,7 @@ from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
 
 from filings_agent import llm
-from filings_agent.agent.prompts import CITATION_RETRY, SYSTEM
+from filings_agent.agent.prompts import ANSWER_NOW, CITATION_RETRY, SYSTEM
 from filings_agent.config import settings
 
 log = logging.getLogger(__name__)
@@ -84,18 +84,25 @@ def fit_context(messages: list[dict], max_chars: int) -> list[dict]:
 def build_graph(session: ClientSession, tools: list[dict]):
     async def agent(state: State) -> dict:
         # On the last allowed step, or once over the token budget, answer with what it has.
+        # This is asked in words: gpt-oss sometimes calls a tool even under
+        # tool_choice="none", and Groq rejects the whole request when it does.
         budget = settings.question_token_budget
         last_step = state["steps"] + 1 >= settings.max_agent_steps or (
             budget > 0 and llm.used_tokens() >= budget
         )
+        messages = fit_context(state["messages"], settings.max_context_chars)
+        if last_step:
+            messages = [*messages, {"role": "user", "content": ANSWER_NOW}]
         resp = await llm.acompletion(
-            messages=fit_context(state["messages"], settings.max_context_chars),
+            messages=messages,
             tools=tools,
-            tool_choice="none" if last_step else "auto",
             temperature=0,
             max_tokens=settings.max_answer_tokens,
         )
         msg = resp.choices[0].message.model_dump(exclude_none=True)
+        if last_step:
+            msg.pop("tool_calls", None)  # ignore a tool call made anyway; answer with the text
+            msg["content"] = msg.get("content") or ""
         return {"messages": [msg], "steps": state["steps"] + 1}
 
     async def call_tools(state: State) -> dict:

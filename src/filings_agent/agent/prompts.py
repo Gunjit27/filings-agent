@@ -11,3 +11,7 @@ Rules:
 
 CITATION_RETRY = """Your answer cited chunk ids that were never returned by a tool: {bad}.
 Either search for supporting evidence or remove those claims. Only cite ids you actually retrieved."""
+
+ANSWER_NOW = """You have used your search budget. Answer now from the tool results above, with
+citations, and do not call any more tools. If they don't contain the answer, say
+"The filings I have do not cover this." """

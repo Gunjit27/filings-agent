@@ -64,7 +64,7 @@ def test_track_sums_usage_and_tags_trace(monkeypatch):
         return Resp()
 
     monkeypatch.setattr(litellm, "completion", fake_completion)
-    monkeypatch.setattr(litellm, "completion_cost", lambda completion_response: 0.001)
+    monkeypatch.setattr(litellm, "cost_per_token", lambda model, prompt_tokens, completion_tokens: (0.0008, 0.0002))
     with llm.track("What was TCS headcount?", session_id="run-1") as usage:
         llm.completion(messages=[])
         llm.completion(messages=[], metadata={"generation_name": "judge"})
@@ -75,3 +75,42 @@ def test_track_sums_usage_and_tags_trace(monkeypatch):
     assert seen[1]["generation_name"] == "judge"
     llm.completion(messages=[])  # outside track(): no trace metadata, nothing recorded
     assert seen[-1] == {}
+
+
+def test_cost_uses_requested_model_name(monkeypatch):
+    import litellm
+
+    class Usage:
+        prompt_tokens, completion_tokens = 1000, 100
+
+    class Resp:
+        usage = Usage()
+        model = "openai/gpt-oss-20b"  # what Groq echoes back, without the provider prefix
+
+    monkeypatch.setattr(settings, "llm_rpm", 0)
+    monkeypatch.setattr(litellm, "completion", lambda **kw: Resp())
+    with llm.track("q") as usage:
+        llm.completion(model="groq/openai/gpt-oss-20b", messages=[])
+    assert usage["cost_usd"] > 0
+
+
+def test_request_too_large_is_not_retried():
+    assert not llm.retryable(Exception("Request too large for model on output tokens per minute"))
+    assert llm.retryable(Exception("Rate limit reached, please try again in 2s"))
+
+
+def test_retry_delay_parses_groq_hints():
+    assert llm.retry_delay(Exception("TPM: Limit 8000. Please try again in 7.66s.")) == 8.66
+    assert llm.retry_delay(Exception("Please try again in 1m2.5s. Need more tokens?")) == 63.5
+
+
+def test_daily_quota_is_not_retried():
+    assert not llm.retryable(Exception("on tokens per day (TPD): Limit 200000. Try again in 3m"))
+
+
+def test_used_tokens_counts_inside_track_only():
+    assert llm.used_tokens() == 0
+    with llm.track("q") as usage:
+        usage["prompt_tokens"], usage["completion_tokens"] = 900, 100
+        assert llm.used_tokens() == 1000
+    assert llm.used_tokens() == 0

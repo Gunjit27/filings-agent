@@ -12,6 +12,7 @@ import argparse
 import asyncio
 import json
 import random
+import re
 import statistics
 import time
 from pathlib import Path
@@ -38,8 +39,13 @@ async def judge(q: dict, answer: str) -> bool:
         model=settings.judge_model,
         messages=[{"role": "user", "content": prompt}],
         temperature=0,
+        # Groq's free tier caps output tokens per minute, and a request is refused
+        # outright if its expected output exceeds the cap, so keep the verdict short.
+        max_tokens=512,
+        reasoning_effort="low",
     )
-    return resp.choices[0].message.content.strip().upper().startswith("YES")
+    verdict = re.sub(r"<think>.*?</think>", "", resp.choices[0].message.content or "", flags=re.DOTALL)
+    return verdict.strip().upper().startswith("YES")
 
 
 def load_questions(sample: int | None, seed: int) -> list[dict]:
@@ -55,33 +61,43 @@ async def main(sample: int | None, seed: int) -> None:
     questions = load_questions(sample, seed)
     run_id = time.strftime("eval-%Y%m%d-%H%M%S")
     rows = []
-    async with agent_session() as graph:
+    async with agent_session(check_index=True) as graph:
         for i, q in enumerate(questions, 1):
-            with llm.track(q["question"], session_id=run_id) as usage:
-                t0 = time.perf_counter()
-                result = await ask(graph, q["question"])
-                latency = time.perf_counter() - t0 - usage["wait_s"]
-            correct = await judge(q, result["answer"] or "")
-            rows.append(
-                {
-                    "id": q["id"],
-                    "type": q["type"],
-                    "correct": correct,
-                    "cited_doc": not q["expected_doc"]
-                    or any(c.startswith(q["expected_doc"]) for c in result["citations"]),
-                    "latency_s": round(latency, 2),
-                    "tokens": usage["prompt_tokens"] + usage["completion_tokens"],
-                    "cost_usd": usage["cost_usd"],
-                    "answer": result["answer"],
-                }
+            row = {"id": q["id"], "type": q["type"], "correct": False, "cited_doc": False}
+            try:
+                with llm.track(q["question"], session_id=run_id) as usage:
+                    t0 = time.perf_counter()
+                    try:
+                        result = await ask(graph, q["question"])
+                    finally:
+                        row["latency_s"] = round(time.perf_counter() - t0 - usage["wait_s"], 2)
+                        row["tokens"] = usage["prompt_tokens"] + usage["completion_tokens"]
+                        row["cost_usd"] = usage["cost_usd"]
+                row["answer"] = result["answer"]
+                row["steps"] = result["steps"]
+                row["cited_doc"] = not q["expected_doc"] or any(
+                    c.startswith(q["expected_doc"]) for c in result["citations"]
+                )
+                row["correct"] = await judge(q, result["answer"] or "")
+            except Exception as err:  # noqa: BLE001 - one bad question shouldn't lose the run
+                row["error"] = f"{type(err).__name__}: {err}"[:500]
+            rows.append(row)
+            detail = row.get("error") or " ".join((row.get("answer") or "").split())
+            if not detail:
+                detail = f"(empty answer after {row.get('steps')} steps)"
+            print(
+                f"[{i}/{len(questions)}] {q['id']} correct={row['correct']} "
+                f"{row['latency_s']:.1f}s {row['tokens']} tok | {detail[:160]}"
             )
-            print(f"[{i}/{len(questions)}] {q['id']} correct={correct} {latency:.1f}s")
     out = HERE / "results"
     out.mkdir(exist_ok=True)
     (out / "results.json").write_text(json.dumps(rows, indent=2, ensure_ascii=False))
     summary = summarize(rows, settings.llm_model)
     (out / "summary.md").write_text(summary)
     print(summary)
+    errors = sum("error" in r for r in rows)
+    if errors * 2 > len(rows):
+        raise SystemExit(f"{errors} of {len(rows)} questions errored; see the log above")
 
 
 def summarize(rows: list[dict], model: str) -> str:
@@ -112,6 +128,9 @@ def summarize(rows: list[dict], model: str) -> str:
                 f"{tokens:,.0f} tokens and ${cost:.4f} per question (list price)"
             ),
         ]
+    errors = sum("error" in r for r in rows)
+    if errors:
+        lines += ["", f"⚠️ {errors} question(s) errored and are scored as wrong."]
     return "\n".join(lines) + "\n"
 
 

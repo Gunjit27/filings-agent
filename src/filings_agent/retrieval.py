@@ -1,5 +1,6 @@
 """Vector search over indexed filings."""
 
+import uuid
 from functools import lru_cache
 
 from fastembed import TextEmbedding
@@ -34,7 +35,7 @@ def search(
     company: str | None = None,
     fy: str | None = None,
     doc_type: str | None = None,
-    k: int = 6,
+    k: int = 4,
 ) -> list[dict]:
     vector = next(embedder().query_embed(query)).tolist()
     hits = qdrant().query_points(
@@ -43,7 +44,16 @@ def search(
         query_filter=_filter(company=company, fy=fy, doc_type=doc_type),
         limit=k,
     ).points
-    return [{**h.payload, "score": round(h.score, 3)} for h in hits]
+    # Only what the agent needs: chunk_id already names the company, year and page.
+    return [
+        {
+            "chunk_id": h.payload["chunk_id"],
+            "doc_id": h.payload["doc_id"],
+            "page": h.payload["page"],
+            "text": h.payload["text"],
+        }
+        for h in hits
+    ]
 
 
 def get_page(doc_id: str, page: int) -> str:
@@ -74,3 +84,15 @@ def list_documents(company: str | None = None) -> list[str]:
         seen.update(p.payload["doc_id"] for p in points)
         if offset is None:
             return sorted(seen)
+
+
+def point_id(chunk_id: str) -> str:
+    """Qdrant point id for a chunk; the indexer derives it the same way."""
+    return str(uuid.uuid5(uuid.NAMESPACE_URL, chunk_id))
+
+
+def get_chunks(chunk_ids: list[str]) -> list[dict]:
+    """Payloads for the given chunk ids, in the order asked for; unknown ids are skipped."""
+    points = qdrant().retrieve(settings.qdrant_collection, ids=[point_id(c) for c in chunk_ids])
+    by_id = {p.payload["chunk_id"]: p.payload for p in points}
+    return [by_id[c] for c in chunk_ids if c in by_id]

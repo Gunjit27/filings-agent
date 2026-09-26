@@ -1,0 +1,24 @@
+name: Deploy demo
+
+# Pushes the demo to a Hugging Face Space. Set the HF_SPACE repository variable to <user>/<space>.
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: [src/**, app/**, config/**, Dockerfile, pyproject.toml]
+
+jobs:
+  deploy:
+    if: vars.HF_SPACE != ''
+    runs-on: ubuntu-latest
+    env:
+      HF_TOKEN: ${{ secrets.HF_TOKEN }}
+      GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+      QDRANT_URL: ${{ secrets.QDRANT_URL }}
+      QDRANT_API_KEY: ${{ secrets.QDRANT_API_KEY }}
+      LANGFUSE_PUBLIC_KEY: ${{ secrets.LANGFUSE_PUBLIC_KEY }}
+      LANGFUSE_SECRET_KEY: ${{ secrets.LANGFUSE_SECRET_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - run: uv run --no-project --with huggingface_hub python deploy/push_space.py "${{ vars.HF_SPACE }}"

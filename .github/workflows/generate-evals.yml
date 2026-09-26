@@ -24,7 +24,8 @@ jobs:
       - uses: astral-sh/setup-uv@v6
       - run: uv sync
       - run: uv run python -m evals.generate --per-doc ${{ inputs.per_doc }}
-      - uses: actions/upload-artifact@v4
+      - if: always()
+        uses: actions/upload-artifact@v4
         with:
           name: eval-candidates
           path: evals/candidates.jsonl

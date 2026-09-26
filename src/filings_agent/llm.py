@@ -58,6 +58,12 @@ def track(trace_name: str, session_id: str | None = None):
         _trace.reset(trace_token)
 
 
+def used_tokens() -> int:
+    """Tokens spent so far inside the current track() block (0 outside one)."""
+    usage = _usage.get()
+    return usage["prompt_tokens"] + usage["completion_tokens"] if usage else 0
+
+
 def _add_wait(seconds: float) -> None:
     """Count time spent pacing or backing off, so reported latency can exclude it."""
     usage = _usage.get()
@@ -65,18 +71,24 @@ def _add_wait(seconds: float) -> None:
         usage["wait_s"] += seconds
 
 
-def _record(resp) -> None:
+def _record(resp, model: str) -> None:
     usage = _usage.get()
     if usage is None:
         return
     usage["calls"] += 1
-    if resp.usage:
-        usage["prompt_tokens"] += resp.usage.prompt_tokens or 0
-        usage["completion_tokens"] += resp.usage.completion_tokens or 0
+    prompt = (resp.usage.prompt_tokens or 0) if resp.usage else 0
+    completion = (resp.usage.completion_tokens or 0) if resp.usage else 0
+    usage["prompt_tokens"] += prompt
+    usage["completion_tokens"] += completion
+    # Price by the model we asked for: responses name it without the provider prefix
+    # (openai/gpt-oss-20b rather than groq/openai/gpt-oss-20b), which LiteLLM can't price.
     try:
-        usage["cost_usd"] += litellm.completion_cost(completion_response=resp)
+        prompt_cost, completion_cost = litellm.cost_per_token(
+            model=model, prompt_tokens=prompt, completion_tokens=completion
+        )
+        usage["cost_usd"] += prompt_cost + completion_cost
     except Exception as err:  # noqa: BLE001 - LiteLLM raises bare Exception for unpriced models
-        log.debug("no price for %s: %s", resp.model if hasattr(resp, "model") else "?", err)
+        log.debug("no price for %s: %s", model, err)
 
 
 def _reserve_slot() -> float:
@@ -91,11 +103,23 @@ def _reserve_slot() -> float:
         return start - now
 
 
+def retryable(err: Exception) -> bool:
+    """Retrying can't fix a request bigger than a per-minute cap, or a spent daily quota."""
+    text = str(err).lower()
+    return "request too large" not in text and "per day" not in text
+
+
 def retry_delay(err: Exception) -> float:
-    """Seconds to wait after a transient error, using the provider's hint when it gives one."""
-    match = re.search(r"retry in ([\d.]+)s", str(err)) or re.search(
-        r'"retryDelay":\s*"(\d+)s"', str(err)
-    )
+    """Seconds to wait after a transient error, using the provider's hint when it gives one.
+
+    Groq says "Please try again in 1m2.5s" or "in 7.66s"; Gemini says "retry in 7s" or
+    gives a retryDelay field.
+    """
+    text = str(err)
+    match = re.search(r"(?:try again|retry) in (?:(\d+)m)?([\d.]+)s", text)
+    if match:
+        return int(match.group(1) or 0) * 60 + float(match.group(2)) + 1
+    match = re.search(r'"retryDelay":\s*"(\d+)s"', text)
     return float(match.group(1)) + 1 if match else DEFAULT_WAIT
 
 
@@ -111,11 +135,12 @@ def completion(**kwargs):
         _add_wait(wait)
         time.sleep(wait)
         try:
-            resp = litellm.completion(**_defaults(kwargs))
-            _record(resp)
+            params = _defaults(kwargs)
+            resp = litellm.completion(**params)
+            _record(resp, params["model"])
             return resp
         except TRANSIENT as err:
-            if attempt == settings.llm_retries:
+            if attempt == settings.llm_retries or not retryable(err):
                 raise
             wait = retry_delay(err)
             _add_wait(wait)
@@ -128,11 +153,12 @@ async def acompletion(**kwargs):
         _add_wait(wait)
         await asyncio.sleep(wait)
         try:
-            resp = await litellm.acompletion(**_defaults(kwargs))
-            _record(resp)
+            params = _defaults(kwargs)
+            resp = await litellm.acompletion(**params)
+            _record(resp, params["model"])
             return resp
         except TRANSIENT as err:
-            if attempt == settings.llm_retries:
+            if attempt == settings.llm_retries or not retryable(err):
                 raise
             wait = retry_delay(err)
             _add_wait(wait)

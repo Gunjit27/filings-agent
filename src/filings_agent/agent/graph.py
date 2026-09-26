@@ -1,6 +1,8 @@
 """LangGraph agent: tool loop over the MCP server, then citation verification."""
 
 import json
+import logging
+import os
 import re
 import sys
 from contextlib import asynccontextmanager
@@ -14,7 +16,24 @@ from filings_agent import llm
 from filings_agent.agent.prompts import CITATION_RETRY, SYSTEM
 from filings_agent.config import settings
 
-CITATION_RE = re.compile(r"\[([A-Z0-9]+_FY\d{2}_[a-z_]+_p\d+_\d+)\]")
+log = logging.getLogger(__name__)
+
+CHUNK_ID = r"[A-Z0-9]+_FY\d{2}_[a-z_]+_p\d+_\d+"
+CITATION_RE = re.compile(rf"\[({CHUNK_ID})\]")
+
+
+def normalize_citations(text: str) -> str:
+    """Rewrite citations to [chunk_id], one id per bracket.
+
+    gpt-oss often cites in its own style, 【chunk_id】 or 【chunk_id†L1-L4】, or puts
+    several ids in one bracket; the verifier and the UI expect [chunk_id].
+    """
+
+    def fix(m: re.Match) -> str:
+        ids = re.findall(CHUNK_ID, m.group(1))
+        return "".join(f"[{i}]" for i in ids) if ids else m.group(0)
+
+    return re.sub(r"[\[【]([^\]】]*)[\]】]", fix, text)
 
 
 def _extend(left: list, right: list) -> list:
@@ -40,9 +59,42 @@ def mcp_tools_to_openai(tools) -> list[dict]:
     ]
 
 
+def fit_context(messages: list[dict], max_chars: int) -> list[dict]:
+    """Shorten the oldest tool results until the conversation fits in max_chars.
+
+    A trimmed result keeps its chunk_ids, so the model can still cite what it read.
+    """
+    if max_chars <= 0:
+        return messages
+    messages = list(messages)
+
+    def size() -> int:
+        return sum(len(json.dumps(m, ensure_ascii=False)) for m in messages)
+
+    for i, m in enumerate(messages):
+        if size() <= max_chars:
+            break
+        if m.get("role") == "tool" and not m["content"].startswith("[trimmed"):
+            ids = re.findall(r'"chunk_id":\s*"([^"]+)"', m["content"])
+            stub = f"[trimmed to fit the context; chunk_ids read: {', '.join(ids) or 'none'}]"
+            messages[i] = {**m, "content": stub}
+    return messages
+
+
 def build_graph(session: ClientSession, tools: list[dict]):
     async def agent(state: State) -> dict:
-        resp = await llm.acompletion(messages=state["messages"], tools=tools, temperature=0)
+        # On the last allowed step, or once over the token budget, answer with what it has.
+        budget = settings.question_token_budget
+        last_step = state["steps"] + 1 >= settings.max_agent_steps or (
+            budget > 0 and llm.used_tokens() >= budget
+        )
+        resp = await llm.acompletion(
+            messages=fit_context(state["messages"], settings.max_context_chars),
+            tools=tools,
+            tool_choice="none" if last_step else "auto",
+            temperature=0,
+            max_tokens=settings.max_answer_tokens,
+        )
         msg = resp.choices[0].message.model_dump(exclude_none=True)
         return {"messages": [msg], "steps": state["steps"] + 1}
 
@@ -52,12 +104,14 @@ def build_graph(session: ClientSession, tools: list[dict]):
             args = json.loads(call["function"]["arguments"] or "{}")
             result = await session.call_tool(call["function"]["name"], args)
             text = "\n".join(c.text for c in result.content if hasattr(c, "text"))
+            if result.is_error:
+                log.warning("tool %s failed: %s", call["function"]["name"], text[:300])
             retrieved += re.findall(r'"chunk_id":\s*"([^"]+)"', text)
             out.append({"role": "tool", "tool_call_id": call["id"], "content": text})
         return {"messages": out, "retrieved": retrieved}
 
     def verify(state: State) -> dict:
-        answer = state["messages"][-1].get("content") or ""
+        answer = normalize_citations(state["messages"][-1].get("content") or "")
         cited = list(dict.fromkeys(CITATION_RE.findall(answer)))
         bad = [c for c in cited if c not in set(state["retrieved"])]
         if bad and state["retries"] < 1:
@@ -90,10 +144,24 @@ def build_graph(session: ClientSession, tools: list[dict]):
 
 
 @asynccontextmanager
-async def agent_session():
-    params = StdioServerParameters(command=sys.executable, args=["-m", "filings_agent.mcp_server"])
+async def agent_session(check_index: bool = False):
+    """Start the MCP server and yield the agent graph.
+
+    check_index fails fast when the server can't list any filings (index unreachable or
+    empty), instead of letting every question quietly come back unanswered.
+    """
+    # The MCP SDK hands stdio servers only a minimal env (HOME, PATH) by default,
+    # so pass ours through or the server can't see QDRANT_URL and its API key.
+    params = StdioServerParameters(
+        command=sys.executable, args=["-m", "filings_agent.mcp_server"], env=dict(os.environ)
+    )
     async with stdio_client(params) as (read, write), ClientSession(read, write) as session:
         await session.initialize()
+        if check_index:
+            result = await session.call_tool("list_documents", {})
+            text = "\n".join(c.text for c in result.content if hasattr(c, "text"))
+            if result.is_error or not text.strip("[] \n"):
+                raise RuntimeError(f"MCP server can't list any filings: {text[:300]}")
         tools = mcp_tools_to_openai((await session.list_tools()).tools)
         yield build_graph(session, tools)
 

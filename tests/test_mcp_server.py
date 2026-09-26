@@ -21,3 +21,32 @@ def test_server_tools_convert_to_openai_format():
     search = by_name["search_filings"]
     assert search["parameters"]["required"] == ["query"]
     assert "chunk_id" in search["description"]
+
+
+def test_agent_session_passes_env_to_server(monkeypatch):
+    """The stdio server must inherit QDRANT_URL etc.; the SDK default env drops them."""
+    import asyncio
+    from contextlib import asynccontextmanager
+
+    from filings_agent.agent import graph
+
+    seen = {}
+
+    @asynccontextmanager
+    async def fake_stdio(params):
+        seen["env"] = params.env
+        raise RuntimeError("stop")
+        yield
+
+    monkeypatch.setenv("QDRANT_URL", "https://example.qdrant")
+    monkeypatch.setattr(graph, "stdio_client", fake_stdio)
+
+    async def run():
+        async with graph.agent_session():
+            pass
+
+    try:
+        asyncio.run(run())
+    except RuntimeError:
+        pass
+    assert seen["env"]["QDRANT_URL"] == "https://example.qdrant"

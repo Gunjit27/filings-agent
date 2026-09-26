@@ -12,6 +12,8 @@ class Settings(BaseSettings):
     llm_model: str = "groq/openai/gpt-oss-20b"
     # A larger model grades answers against the hand-checked expected ones.
     judge_model: str = "groq/openai/gpt-oss-120b"
+    # One judge verdict can flip between runs; the majority of this many is steadier.
+    judge_votes: int = 3
     qdrant_url: str = ""
     qdrant_api_key: str = ""
     # v2 adds BM25 sparse vectors next to the dense ones, for hybrid search.

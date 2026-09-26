@@ -12,6 +12,7 @@ import json
 import random
 from pathlib import Path
 
+import litellm
 from qdrant_client import models
 
 from filings_agent import llm
@@ -24,9 +25,10 @@ MIN_CHARS = 600  # skip near-empty pages (covers, dividers)
 PROMPT = """Below is one page excerpt from {doc_id}.
 Write ONE question an equity analyst might ask that this excerpt answers with a specific fact
 (a number, name, date or short phrase). The question must name the company and fiscal year and
-make sense without seeing the excerpt. If the excerpt has no such fact, reply SKIP.
+make sense without seeing the excerpt.
 
 Reply as JSON: {{"question": "...", "expected": "short exact answer with units"}}
+If the excerpt has no such fact, reply {{"skip": true}}.
 
 Excerpt:
 {text}"""
@@ -44,6 +46,24 @@ def sample_chunks(doc_id: str, n: int, rng: random.Random) -> list[dict]:
     return rng.sample(pool, min(n, len(pool)))
 
 
+def draft(doc_id: str, text: str) -> dict | None:
+    """One question/answer pair for a passage, or None when the model finds no usable fact."""
+    try:
+        resp = llm.completion(
+            messages=[{"role": "user", "content": PROMPT.format(doc_id=doc_id, text=text)}],
+            temperature=0,
+            response_format={"type": "json_object"},
+        )
+        qa = json.loads(resp.choices[0].message.content)
+    except (litellm.BadRequestError, json.JSONDecodeError) as err:
+        # Groq rejects replies that fail its JSON check; one bad passage shouldn't end the run.
+        print(f"  skipped a passage in {doc_id}: {str(err)[:120]}")
+        return None
+    if qa.get("skip") or not qa.get("question") or not qa.get("expected"):
+        return None
+    return qa
+
+
 def main(per_doc: int, seed: int) -> None:
     rng = random.Random(seed)
     out = HERE / "candidates.jsonl"
@@ -51,18 +71,8 @@ def main(per_doc: int, seed: int) -> None:
     with out.open("w") as f:
         for doc_id in list_documents():
             for chunk in sample_chunks(doc_id, per_doc, rng):
-                prompt = PROMPT.format(doc_id=doc_id, text=chunk["text"])
-                resp = llm.completion(
-                    messages=[{"role": "user", "content": prompt}],
-                    temperature=0,
-                    response_format={"type": "json_object"},
-                )
-                content = resp.choices[0].message.content.strip()
-                if content.startswith("SKIP"):
-                    continue
-                try:
-                    qa = json.loads(content)
-                except json.JSONDecodeError:
+                qa = draft(doc_id, chunk["text"])
+                if not qa:
                     continue
                 n += 1
                 row = {
@@ -76,6 +86,7 @@ def main(per_doc: int, seed: int) -> None:
                     "source_text": chunk["text"],
                 }
                 f.write(json.dumps(row, ensure_ascii=False) + "\n")
+                f.flush()
     print(f"wrote {n} candidates to {out}")
 
 

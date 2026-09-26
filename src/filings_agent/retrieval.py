@@ -35,7 +35,7 @@ def search(
     company: str | None = None,
     fy: str | None = None,
     doc_type: str | None = None,
-    k: int = 6,
+    k: int = 4,
 ) -> list[dict]:
     vector = next(embedder().query_embed(query)).tolist()
     hits = qdrant().query_points(
@@ -44,7 +44,16 @@ def search(
         query_filter=_filter(company=company, fy=fy, doc_type=doc_type),
         limit=k,
     ).points
-    return [{**h.payload, "score": round(h.score, 3)} for h in hits]
+    # Only what the agent needs: chunk_id already names the company, year and page.
+    return [
+        {
+            "chunk_id": h.payload["chunk_id"],
+            "doc_id": h.payload["doc_id"],
+            "page": h.payload["page"],
+            "text": h.payload["text"],
+        }
+        for h in hits
+    ]
 
 
 def get_page(doc_id: str, page: int) -> str:

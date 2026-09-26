@@ -97,3 +97,12 @@ def test_cost_uses_requested_model_name(monkeypatch):
 def test_request_too_large_is_not_retried():
     assert not llm.retryable(Exception("Request too large for model on output tokens per minute"))
     assert llm.retryable(Exception("Rate limit reached, please try again in 2s"))
+
+
+def test_retry_delay_parses_groq_hints():
+    assert llm.retry_delay(Exception("TPM: Limit 8000. Please try again in 7.66s.")) == 8.66
+    assert llm.retry_delay(Exception("Please try again in 1m2.5s. Need more tokens?")) == 63.5
+
+
+def test_daily_quota_is_not_retried():
+    assert not llm.retryable(Exception("on tokens per day (TPD): Limit 200000. Try again in 3m"))

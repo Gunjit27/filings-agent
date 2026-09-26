@@ -98,15 +98,22 @@ def _reserve_slot() -> float:
 
 
 def retryable(err: Exception) -> bool:
-    """A request bigger than a per-minute cap fails the same way on every retry."""
-    return "request too large" not in str(err).lower()
+    """Retrying can't fix a request bigger than a per-minute cap, or a spent daily quota."""
+    text = str(err).lower()
+    return "request too large" not in text and "per day" not in text
 
 
 def retry_delay(err: Exception) -> float:
-    """Seconds to wait after a transient error, using the provider's hint when it gives one."""
-    match = re.search(r"retry in ([\d.]+)s", str(err)) or re.search(
-        r'"retryDelay":\s*"(\d+)s"', str(err)
-    )
+    """Seconds to wait after a transient error, using the provider's hint when it gives one.
+
+    Groq says "Please try again in 1m2.5s" or "in 7.66s"; Gemini says "retry in 7s" or
+    gives a retryDelay field.
+    """
+    text = str(err)
+    match = re.search(r"(?:try again|retry) in (?:(\d+)m)?([\d.]+)s", text)
+    if match:
+        return int(match.group(1) or 0) * 60 + float(match.group(2)) + 1
+    match = re.search(r'"retryDelay":\s*"(\d+)s"', text)
     return float(match.group(1)) + 1 if match else DEFAULT_WAIT
 
 

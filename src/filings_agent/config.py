@@ -12,10 +12,17 @@ class Settings(BaseSettings):
     llm_model: str = "groq/openai/gpt-oss-20b"
     # A larger model grades answers against the hand-checked expected ones.
     judge_model: str = "groq/openai/gpt-oss-120b"
+    # One judge verdict can flip between runs; the majority of this many is steadier.
+    judge_votes: int = 3
     qdrant_url: str = ""
     qdrant_api_key: str = ""
-    qdrant_collection: str = "filings"
+    # v2 adds BM25 sparse vectors next to the dense ones, for hybrid search.
+    qdrant_collection: str = "filings_v2"
     embed_model: str = "BAAI/bge-small-en-v1.5"
+    sparse_model: str = "Qdrant/bm25"
+    # A cross-encoder re-scores the hybrid candidates and keeps the best few; "" disables it.
+    rerank_model: str = "Xenova/ms-marco-MiniLM-L-12-v2"
+    search_candidates: int = 20
     data_dir: Path = ROOT / "data"
     max_agent_steps: int = 5
     # Groq's free tier refuses any request over 8K tokens (input plus max output), so the

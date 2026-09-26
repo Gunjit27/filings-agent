@@ -100,6 +100,20 @@ def build_graph(session: ClientSession, tools: list[dict]):
             max_tokens=settings.max_answer_tokens,
         )
         msg = resp.choices[0].message.model_dump(exclude_none=True)
+        if not msg.get("tool_calls") and not (msg.get("content") or "").strip():
+            # gpt-oss can spend its whole output budget reasoning and return no text.
+            # Ask once more for the answer, with less reasoning.
+            if not last_step:
+                messages = [*messages, {"role": "user", "content": ANSWER_NOW}]
+            resp = await llm.acompletion(
+                messages=messages,
+                tools=tools,
+                temperature=0,
+                max_tokens=settings.max_answer_tokens,
+                reasoning_effort="low",
+            )
+            msg = resp.choices[0].message.model_dump(exclude_none=True)
+            last_step = True
         if last_step:
             msg.pop("tool_calls", None)  # ignore a tool call made anyway; answer with the text
             msg["content"] = msg.get("content") or ""

@@ -4,7 +4,15 @@ from qdrant_client import models
 
 from filings_agent.config import settings
 from filings_agent.ingest.parse import parse_pdf
-from filings_agent.retrieval import embedder, list_documents, point_id, qdrant
+from filings_agent.retrieval import (
+    SPARSE,
+    embedder,
+    list_documents,
+    point_id,
+    qdrant,
+    sparse_embedder,
+    sparse_vector,
+)
 
 BATCH = 64
 
@@ -17,6 +25,8 @@ def ensure_collection() -> None:
     client.create_collection(
         settings.qdrant_collection,
         vectors_config=models.VectorParams(size=dim, distance=models.Distance.COSINE),
+        # Qdrant applies IDF at query time, so BM25 scores stay right as documents are added.
+        sparse_vectors_config={SPARSE: models.SparseVectorParams(modifier=models.Modifier.IDF)},
     )
     for field in ("company", "fy", "doc_type", "doc_id"):
         client.create_payload_index(settings.qdrant_collection, field, "keyword")
@@ -36,16 +46,18 @@ def index_all(reindex: bool = False) -> None:
         print(f"{pdf.name}: {len(chunks)} chunks")
         for i in range(0, len(chunks), BATCH):
             batch = chunks[i : i + BATCH]
-            vectors = list(embedder().embed([c.text for c in batch]))
+            texts = [c.text for c in batch]
+            vectors = list(embedder().embed(texts))
+            sparse = list(sparse_embedder().embed(texts))
             client.upsert(
                 settings.qdrant_collection,
                 points=[
                     models.PointStruct(
                         id=point_id(c.chunk_id),
-                        vector=v.tolist(),
+                        vector={"": v.tolist(), SPARSE: sparse_vector(s)},
                         payload=c.payload(),
                     )
-                    for c, v in zip(batch, vectors)
+                    for c, v, s in zip(batch, vectors, sparse)
                 ],
             )
             print(f"  {min(i + BATCH, len(chunks))}/{len(chunks)}")

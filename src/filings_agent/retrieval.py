@@ -1,9 +1,15 @@
-"""Vector search over indexed filings."""
+"""Hybrid search over indexed filings: dense + BM25, fused, then reranked.
+
+Dense vectors find passages that mean the same thing; BM25 finds exact terms such as
+"business banking" or a figure's label, which dense search often misses. The two lists
+are merged with reciprocal rank fusion, and a cross-encoder picks the best few.
+"""
 
 import uuid
 from functools import lru_cache
 
-from fastembed import TextEmbedding
+from fastembed import SparseTextEmbedding, TextEmbedding
+from fastembed.rerank.cross_encoder import TextCrossEncoder
 from qdrant_client import QdrantClient, models
 
 from filings_agent.config import settings
@@ -12,6 +18,32 @@ from filings_agent.config import settings
 @lru_cache
 def embedder() -> TextEmbedding:
     return TextEmbedding(settings.embed_model)
+
+
+@lru_cache
+def sparse_embedder() -> SparseTextEmbedding:
+    return SparseTextEmbedding(settings.sparse_model)
+
+
+@lru_cache
+def reranker() -> TextCrossEncoder | None:
+    return TextCrossEncoder(settings.rerank_model) if settings.rerank_model else None
+
+
+SPARSE = "bm25"
+
+
+def sparse_vector(embedding) -> models.SparseVector:
+    return models.SparseVector(
+        indices=embedding.indices.tolist(), values=embedding.values.tolist()
+    )
+
+
+@lru_cache
+def has_sparse() -> bool:
+    """True when the collection has BM25 vectors; older, dense-only indexes still work."""
+    params = qdrant().get_collection(settings.qdrant_collection).config.params
+    return SPARSE in (params.sparse_vectors or {})
 
 
 @lru_cache
@@ -38,21 +70,32 @@ def search(
     k: int = 4,
 ) -> list[dict]:
     vector = next(embedder().query_embed(query)).tolist()
-    hits = qdrant().query_points(
-        settings.qdrant_collection,
-        query=vector,
-        query_filter=_filter(company=company, fy=fy, doc_type=doc_type),
-        limit=k,
-    ).points
+    query_filter = _filter(company=company, fy=fy, doc_type=doc_type)
+    n = max(k, settings.search_candidates) if reranker() else k
+    if has_sparse():
+        sparse = sparse_vector(next(sparse_embedder().query_embed(query)))
+        hits = qdrant().query_points(
+            settings.qdrant_collection,
+            prefetch=[
+                models.Prefetch(query=vector, filter=query_filter, limit=n),
+                models.Prefetch(query=sparse, using=SPARSE, filter=query_filter, limit=n),
+            ],
+            query=models.FusionQuery(fusion=models.Fusion.RRF),
+            limit=n,
+        ).points
+    else:
+        hits = qdrant().query_points(
+            settings.qdrant_collection, query=vector, query_filter=query_filter, limit=n
+        ).points
+    payloads = [h.payload for h in hits]
+    if reranker() and len(payloads) > k:
+        scores = list(reranker().rerank(query, [p["text"] for p in payloads]))
+        order = sorted(range(len(payloads)), key=lambda i: scores[i], reverse=True)
+        payloads = [payloads[i] for i in order]
     # Only what the agent needs: chunk_id already names the company, year and page.
     return [
-        {
-            "chunk_id": h.payload["chunk_id"],
-            "doc_id": h.payload["doc_id"],
-            "page": h.payload["page"],
-            "text": h.payload["text"],
-        }
-        for h in hits
+        {"chunk_id": p["chunk_id"], "doc_id": p["doc_id"], "page": p["page"], "text": p["text"]}
+        for p in payloads[:k]
     ]
 
 

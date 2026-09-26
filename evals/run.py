@@ -2,7 +2,8 @@
 
 Usage: python -m evals.run [--sample N] [--seed S]
 Metrics per question:
-  correct     LLM judge compares the answer with the expected one (or a refusal for UNANSWERABLE)
+  correct     LLM judge compares the answer with the expected one, majority of JUDGE_VOTES
+              samples (a refusal is expected for UNANSWERABLE)
   cited_doc   at least one citation comes from expected_doc
   latency_s   agent time, excluding time spent waiting on the free-tier rate limit
   tokens, cost_usd   summed over the agent's LLM calls (cost at LiteLLM list prices)
@@ -29,25 +30,42 @@ Expected answer: {expected}
 Model answer: {answer}
 Does the model answer give what the question asks for, matching the expected answer?
 Numbers may be rounded or in other units (₹13,417.66 billion = ₹13.42 trillion). Ignore extra
-detail in either answer that the question did not ask for.
+detail in either answer that the question did not ask for. For a change between years, the
+right figures for both years are enough, whether or not the change is also given.
 Reply with exactly YES or NO."""
 
 
-async def judge(q: dict, answer: str) -> bool:
-    if q["expected"] == "UNANSWERABLE":
-        return REFUSAL in answer.lower()
-    prompt = JUDGE.format(q=q["question"], expected=q["expected"], answer=answer)
+async def judge_once(prompt: str) -> bool:
     resp = await llm.acompletion(
         model=settings.judge_model,
         messages=[{"role": "user", "content": prompt}],
-        temperature=0,
-        # Groq's free tier caps output tokens per minute, and a request is refused
-        # outright if its expected output exceeds the cap, so keep the verdict short.
-        max_tokens=512,
-        reasoning_effort="low",
+        # Sampled, so repeated votes are independent; a single greedy verdict flips between
+        # runs anyway, and a majority of samples is steadier.
+        temperature=1,
+        # Groq's free tier refuses a request whose input plus max output exceeds its
+        # per-minute cap, so keep the verdict short.
+        max_tokens=1024,
+        reasoning_effort="medium",
     )
     verdict = re.sub(r"<think>.*?</think>", "", resp.choices[0].message.content or "", flags=re.DOTALL)
     return verdict.strip().upper().startswith("YES")
+
+
+async def judge(q: dict, answer: str) -> bool:
+    """Majority vote of up to settings.judge_votes judge calls; stops once a side has won."""
+    if q["expected"] == "UNANSWERABLE":
+        return REFUSAL in answer.lower()
+    if not answer.strip() or REFUSAL in answer.lower():
+        return False  # nothing to grade; saves the judge calls
+    prompt = JUDGE.format(q=q["question"], expected=q["expected"], answer=answer)
+    need = settings.judge_votes // 2 + 1
+    yes = no = 0
+    while yes < need and no < need:
+        if await judge_once(prompt):
+            yes += 1
+        else:
+            no += 1
+    return yes >= need
 
 
 def load_questions(sample: int | None, seed: int) -> list[dict]:

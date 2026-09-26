@@ -32,16 +32,21 @@ that holds the answer.
 ## How it works
 
 1. **Ingest**: annual report PDFs are parsed page by page (PyMuPDF), embedded locally
-   (fastembed, bge-small) and stored in Qdrant with company, fiscal year and page metadata.
-2. **MCP server**: `search_filings`, `get_page` and `list_documents` are exposed as MCP tools,
+   (fastembed: bge-small dense vectors plus BM25 sparse vectors) and stored in Qdrant with
+   company, fiscal year and page metadata.
+2. **Hybrid search**: dense and BM25 results are merged with reciprocal rank fusion, and a
+   cross-encoder (MiniLM) reranks the top 20 down to 4. BM25 catches exact labels and figures
+   ("business banking advances") that dense search alone misses.
+3. **MCP server**: `search_filings`, `get_page` and `list_documents` are exposed as MCP tools,
    so any MCP client (this agent, Claude Desktop, Cursor) can use them.
-3. **Agent**: a LangGraph loop calls the tools, drafts an answer, then a verifier checks that every
+4. **Agent**: a LangGraph loop calls the tools, drafts an answer, then a verifier checks that every
    cited chunk was actually retrieved. Unsupported citations trigger one retry, then get stripped.
-4. **Evals**: the question set runs on every PR and posts accuracy, citation hit rate, p50/p95
-   latency, tokens and cost per question as a PR comment.
-5. **Observability**: every LLM call is traced to Langfuse, grouped per question, with tokens,
+5. **Evals**: the question set runs on every PR and posts accuracy, citation hit rate, p50/p95
+   latency, tokens and cost per question as a PR comment. A retrieval-only check
+   (`evals/retrieval.py`, no LLM calls) scores search after every ingest.
+6. **Observability**: every LLM call is traced to Langfuse, grouped per question, with tokens,
    latency and cost.
-6. **Demo**: a Streamlit app (`app/streamlit_app.py`) shows the answer with numbered citations,
+7. **Demo**: a Streamlit app (`app/streamlit_app.py`) shows the answer with numbered citations,
    each linking to the page in the source PDF. It deploys to a Hugging Face Space.
 
 ## Quickstart
@@ -63,7 +68,7 @@ Companies in scope are listed in `config/companies.yaml`; edit it and re-run ing
 |---|---|---|
 | CI | every push and PR | ruff, pytest; on PRs also scores a fixed 20-question sample and comments the table |
 | Full eval | manual | scores every question and uploads the results |
-| Ingest filings | manual, or a change to `config/companies.yaml` | downloads new reports and indexes them into Qdrant Cloud |
+| Ingest filings | manual, or a change to `config/companies.yaml` | downloads new reports, indexes them into Qdrant Cloud, then scores retrieval |
 | Draft eval questions | manual | drafts candidate questions from indexed pages for human review |
 
 Required repository secrets: `GROQ_API_KEY`, `QDRANT_URL`, `QDRANT_API_KEY`.
@@ -73,7 +78,8 @@ Required repository secrets: `GROQ_API_KEY`, `QDRANT_URL`, `QDRANT_API_KEY`.
 
 ## Known limitations
 
-- Some PDFs (notably TCS's) embed fonts that PyMuPDF extracts as look-alike glyphs, for example
-  `ϰ` for `4`, which hurts retrieval of numbers from those pages.
+- Some PDFs (notably TCS's) embed fonts that PyMuPDF extracts as look-alike glyphs. Digits
+  (`ϰ` for `4`) and the "ffi" ligature are mapped back during parsing; some words still come
+  out with stray spaces.
 - Tables are indexed as flattened text, so multi-column tables lose their row and column structure.
 - Five of the ten configured companies have no report URLs yet (`config/companies.yaml`).

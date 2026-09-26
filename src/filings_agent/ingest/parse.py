@@ -24,7 +24,14 @@ class Chunk:
         return asdict(self)
 
 
+# Some reports (TCS's) embed fonts whose digits extract as the Coptic letters U+03EC..U+03F5
+# in order (Ϭ=0 ... ϵ=9), and the "ffi" ligature as ĸ. English filings never use these, so
+# mapping them back is safe, and it makes the figures searchable.
+GLYPH_FIXES = str.maketrans({**{chr(0x03EC + d): str(d) for d in range(10)}, "ĸ": "ffi"})
+
+
 def clean(text: str) -> str:
+    text = text.translate(GLYPH_FIXES)
     text = re.sub(r"[ \t]+", " ", text)
     text = re.sub(r"\n{3,}", "\n\n", text)
     return text.strip()

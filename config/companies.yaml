@@ -1,0 +1,13 @@
+# Companies in scope. bse_code is the BSE scrip code.
+# annual_reports: fill with direct PDF URLs (company IR or BSE) per fiscal year.
+companies:
+  - {id: RELIANCE,   name: Reliance Industries,  bse_code: 500325, annual_reports: {FY24: "", FY25: ""}}
+  - {id: TCS,        name: Tata Consultancy Services, bse_code: 532540, annual_reports: {FY24: "", FY25: ""}}
+  - {id: INFY,       name: Infosys,              bse_code: 500209, annual_reports: {FY24: "", FY25: ""}}
+  - {id: HDFCBANK,   name: HDFC Bank,            bse_code: 500180, annual_reports: {FY24: "", FY25: ""}}
+  - {id: ICICIBANK,  name: ICICI Bank,           bse_code: 532174, annual_reports: {FY24: "", FY25: ""}}
+  - {id: ITC,        name: ITC,                  bse_code: 500875, annual_reports: {FY24: "", FY25: ""}}
+  - {id: LT,         name: Larsen & Toubro,      bse_code: 500510, annual_reports: {FY24: "", FY25: ""}}
+  - {id: BHARTIARTL, name: Bharti Airtel,        bse_code: 532454, annual_reports: {FY24: "", FY25: ""}}
+  - {id: HINDUNILVR, name: Hindustan Unilever,   bse_code: 500696, annual_reports: {FY24: "", FY25: ""}}
+  - {id: TATAMOTORS, name: Tata Motors,          bse_code: 500570, annual_reports: {FY24: "", FY25: ""}}

@@ -1,0 +1,9 @@
+__pycache__/
+.venv/
+.env
+data/raw/
+data/parsed/
+qdrant_local/
+.pytest_cache/
+.ruff_cache/
+evals/results/

@@ -1,0 +1,43 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - run: uv sync --extra dev
+      - run: uv run ruff check .
+      - run: uv run pytest -q
+
+  eval:
+    # Needs the index (Qdrant Cloud) and an LLM key; skipped until secrets are added.
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    needs: test
+    permissions:
+      pull-requests: write
+    env:
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      QDRANT_URL: ${{ secrets.QDRANT_URL }}
+      QDRANT_API_KEY: ${{ secrets.QDRANT_API_KEY }}
+      LANGFUSE_PUBLIC_KEY: ${{ secrets.LANGFUSE_PUBLIC_KEY }}
+      LANGFUSE_SECRET_KEY: ${{ secrets.LANGFUSE_SECRET_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - name: Check secrets
+        id: secrets
+        run: echo "ready=${{ env.GEMINI_API_KEY != '' && env.QDRANT_URL != '' }}" >> "$GITHUB_OUTPUT"
+      - if: steps.secrets.outputs.ready == 'true'
+        run: uv sync && uv run python -m evals.run
+      - if: steps.secrets.outputs.ready == 'true'
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          header: eval
+          path: evals/results/summary.md

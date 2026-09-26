@@ -1,0 +1,4 @@
+{"id": "q001", "type": "lookup", "company": "TCS", "question": "What was TCS's total headcount at the end of FY25?", "expected": "", "expected_doc": "TCS_FY25_annual_report"}
+{"id": "q002", "type": "compare_years", "company": "INFY", "question": "How did Infosys's consolidated revenue change from FY24 to FY25?", "expected": "", "expected_doc": "INFY_FY25_annual_report"}
+{"id": "q003", "type": "compare_companies", "company": "HDFCBANK,ICICIBANK", "question": "Compare the gross NPA ratio of HDFC Bank and ICICI Bank at the end of FY25.", "expected": "", "expected_doc": "HDFCBANK_FY25_annual_report"}
+{"id": "q004", "type": "unanswerable", "company": "ITC", "question": "What will ITC's revenue be in FY30?", "expected": "UNANSWERABLE", "expected_doc": ""}

@@ -27,7 +27,9 @@ REFUSAL = "do not cover"
 JUDGE = """Question: {q}
 Expected answer: {expected}
 Model answer: {answer}
-Does the model answer state the same facts as the expected answer (numbers may be rounded)?
+Does the model answer give what the question asks for, matching the expected answer?
+Numbers may be rounded or in other units (₹13,417.66 billion = ₹13.42 trillion). Ignore extra
+detail in either answer that the question did not ask for.
 Reply with exactly YES or NO."""
 
 

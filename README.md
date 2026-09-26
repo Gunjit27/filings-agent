@@ -12,22 +12,40 @@ and ICICI Bank (FY25 and FY26), 5,834 passages
 ## Eval results
 
 <!-- eval-results:start -->
-20 hand-verified questions, `groq/openai/gpt-oss-20b` agent, scored in CI on every PR:
+20 hand-verified questions, `groq/openai/gpt-oss-20b` as the agent. Numbers are the mean of two
+runs on the same code, because single runs vary by a few questions.
 
 | Metric | Result |
 |---|---|
-| Answer accuracy (LLM judge vs. verified answer) | **65%** |
-| Answers citing the correct filing | **80%** |
-| Correct refusals on unanswerable questions | **100%** |
-| Latency (p50) | **2.0 s** |
-| Cost per question | **$0.0004** |
+| Answer accuracy (LLM judge vs. verified answer) | 73% (runs: 70%, 75%) |
+| Answers citing the correct filing | 83% |
+| Correct refusals on unanswerable questions | 100% (2 of 2) |
+| Latency (p50) | 4.4 s |
+| Cost per question | $0.0004 |
 <!-- eval-results:end -->
 
-20 hand-verified questions (`evals/questions.jsonl`): 15 single-fact lookups, 3 year-over-year
+The questions are in `evals/questions.jsonl`: 15 single-fact lookups, 3 year-over-year
 comparisons and 2 questions the filings can't answer, where the right response is a refusal.
-Each expected answer was checked against the page it came from. A larger model (gpt-oss-120b)
-compares each answer with the expected one; "citing the correct filing" checks that a citation points at the filing
-that holds the answer.
+Each expected answer was checked against the page it came from. gpt-oss-120b grades each answer
+against the expected one; it samples up to three verdicts and takes the majority, since a single
+verdict sometimes flipped between runs. "Citing the correct filing" checks that a citation points
+at the filing that holds the answer.
+
+### Retrieval
+
+`evals/retrieval.py` checks search on its own, with no LLM calls: for each question, is the
+passage with the answer in the top 4 results?
+
+| Search | Right filing | Passage with the answer |
+|---|---|---|
+| Dense only (bge-small) | 100% | 50% |
+| Dense + BM25 (RRF) | 100% | 56% |
+| Dense + BM25 + MiniLM reranker | 100% | 72% |
+
+Search almost always found the right report but often not the right page. Hybrid search and
+reranking, together with a few agent fixes made at the same time (TCS digit parsing, a fallback
+for years with no report, a retry on empty answers), took answer accuracy from 65% to 73%. The
+reranker adds about 2 s per question on a CPU runner.
 
 ## How it works
 
@@ -35,8 +53,8 @@ that holds the answer.
    (fastembed: bge-small dense vectors plus BM25 sparse vectors) and stored in Qdrant with
    company, fiscal year and page metadata.
 2. **Hybrid search**: dense and BM25 results are merged with reciprocal rank fusion, and a
-   cross-encoder (MiniLM) reranks the top 20 down to 4. BM25 catches exact labels and figures
-   ("business banking advances") that dense search alone misses.
+   cross-encoder (MiniLM) reranks the top 20 down to 4. BM25 helps with exact labels like
+   "business banking advances" that dense search misses.
 3. **MCP server**: `search_filings`, `get_page` and `list_documents` are exposed as MCP tools,
    so any MCP client (this agent, Claude Desktop, Cursor) can use them.
 4. **Agent**: a LangGraph loop calls the tools, drafts an answer, then a verifier checks that every
@@ -47,7 +65,7 @@ that holds the answer.
 6. **Observability**: every LLM call is traced to Langfuse, grouped per question, with tokens,
    latency and cost.
 7. **Demo**: a Streamlit app (`app/streamlit_app.py`) shows the answer with numbered citations,
-   each linking to the page in the source PDF. It deploys to a Hugging Face Space.
+   each linking to the page in the source PDF. Hosting is pending.
 
 ## Quickstart
 

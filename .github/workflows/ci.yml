@@ -1,5 +1,8 @@
 name: CI
 
+env:
+  PYTHONUNBUFFERED: "1"
+
 on:
   pull_request:
   push:
@@ -23,19 +26,21 @@ jobs:
     permissions:
       pull-requests: write
     env:
+      GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
       GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
       QDRANT_URL: ${{ secrets.QDRANT_URL }}
       QDRANT_API_KEY: ${{ secrets.QDRANT_API_KEY }}
       LANGFUSE_PUBLIC_KEY: ${{ secrets.LANGFUSE_PUBLIC_KEY }}
       LANGFUSE_SECRET_KEY: ${{ secrets.LANGFUSE_SECRET_KEY }}
+      LANGFUSE_HOST: ${{ secrets.LANGFUSE_HOST || 'https://cloud.langfuse.com' }}
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v6
       - name: Check secrets
         id: secrets
-        run: echo "ready=${{ env.GEMINI_API_KEY != '' && env.QDRANT_URL != '' }}" >> "$GITHUB_OUTPUT"
+        run: echo "ready=${{ env.GROQ_API_KEY != '' && env.QDRANT_URL != '' }}" >> "$GITHUB_OUTPUT"
       - if: steps.secrets.outputs.ready == 'true'
-        run: uv sync && uv run python -m evals.run
+        run: uv sync && uv run python -m evals.run --sample 20
       - if: steps.secrets.outputs.ready == 'true'
         uses: marocchino/sticky-pull-request-comment@v2
         with:

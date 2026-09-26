@@ -12,9 +12,9 @@ import json
 import random
 from pathlib import Path
 
-import litellm
 from qdrant_client import models
 
+from filings_agent import llm
 from filings_agent.config import settings
 from filings_agent.retrieval import list_documents, qdrant
 
@@ -51,9 +51,9 @@ def main(per_doc: int, seed: int) -> None:
     with out.open("w") as f:
         for doc_id in list_documents():
             for chunk in sample_chunks(doc_id, per_doc, rng):
-                resp = litellm.completion(
-                    model=settings.llm_model,
-                    messages=[{"role": "user", "content": PROMPT.format(doc_id=doc_id, text=chunk["text"])}],
+                prompt = PROMPT.format(doc_id=doc_id, text=chunk["text"])
+                resp = llm.completion(
+                    messages=[{"role": "user", "content": prompt}],
                     temperature=0,
                     response_format={"type": "json_object"},
                 )
@@ -73,6 +73,7 @@ def main(per_doc: int, seed: int) -> None:
                     "expected": qa["expected"],
                     "expected_doc": doc_id,
                     "source_chunk": chunk["chunk_id"],
+                    "source_text": chunk["text"],
                 }
                 f.write(json.dumps(row, ensure_ascii=False) + "\n")
     print(f"wrote {n} candidates to {out}")

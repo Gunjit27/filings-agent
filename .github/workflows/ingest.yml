@@ -12,6 +12,9 @@ on:
     branches: [main]
     paths: [config/companies.yaml]
 
+env:
+  PYTHONUNBUFFERED: "1"
+
 jobs:
   ingest:
     runs-on: ubuntu-latest

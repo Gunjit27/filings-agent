@@ -6,11 +6,11 @@ import sys
 from contextlib import asynccontextmanager
 from typing import Annotated, TypedDict
 
-import litellm
 from langgraph.graph import END, StateGraph
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
 
+from filings_agent import llm
 from filings_agent.agent.prompts import CITATION_RETRY, SYSTEM
 from filings_agent.config import settings
 
@@ -34,7 +34,7 @@ def mcp_tools_to_openai(tools) -> list[dict]:
     return [
         {
             "type": "function",
-            "function": {"name": t.name, "description": t.description, "parameters": t.inputSchema},
+            "function": {"name": t.name, "description": t.description, "parameters": t.input_schema},
         }
         for t in tools
     ]
@@ -42,9 +42,7 @@ def mcp_tools_to_openai(tools) -> list[dict]:
 
 def build_graph(session: ClientSession, tools: list[dict]):
     async def agent(state: State) -> dict:
-        resp = await litellm.acompletion(
-            model=settings.llm_model, messages=state["messages"], tools=tools, temperature=0
-        )
+        resp = await llm.acompletion(messages=state["messages"], tools=tools, temperature=0)
         msg = resp.choices[0].message.model_dump(exclude_none=True)
         return {"messages": [msg], "steps": state["steps"] + 1}
 

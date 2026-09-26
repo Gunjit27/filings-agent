@@ -20,7 +20,7 @@ and BSE disclosures, with a page-level citation on every claim.
 
 ```bash
 uv sync --extra dev
-cp .env.example .env            # add GEMINI_API_KEY
+cp .env.example .env            # add GROQ_API_KEY
 python -m filings_agent.ingest.download
 python -m filings_agent.ingest.index
 python -m filings_agent.cli "How did TCS's attrition change from FY25 to FY26?"
@@ -32,8 +32,12 @@ Companies in scope are listed in `config/companies.yaml`; edit it and re-run ing
 
 | Workflow | Trigger | What it does |
 |---|---|---|
-| CI | every push and PR | ruff, pytest; on PRs also runs the eval set and comments the score table |
+| CI | every push and PR | ruff, pytest; on PRs also scores a fixed 20-question sample and comments the table |
+| Full eval | manual | scores every question and uploads the results |
 | Ingest filings | manual, or a change to `config/companies.yaml` | downloads new reports and indexes them into Qdrant Cloud |
 | Draft eval questions | manual | drafts candidate questions from indexed pages for human review |
 
-Required repository secrets: `GEMINI_API_KEY`, `QDRANT_URL`, `QDRANT_API_KEY`.
+Required repository secrets: `GROQ_API_KEY`, `QDRANT_URL`, `QDRANT_API_KEY`.
+`GEMINI_API_KEY` is optional, for running with `LLM_MODEL=gemini/...`.
+`LANGFUSE_PUBLIC_KEY` and `LANGFUSE_SECRET_KEY` are optional; when set, every LLM call is traced to Langfuse
+(`LANGFUSE_HOST` defaults to the EU cloud).

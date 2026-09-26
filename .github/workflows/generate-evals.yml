@@ -8,10 +8,14 @@ on:
         description: Questions to draft per document
         default: "6"
 
+env:
+  PYTHONUNBUFFERED: "1"
+
 jobs:
   generate:
     runs-on: ubuntu-latest
     env:
+      GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
       GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
       QDRANT_URL: ${{ secrets.QDRANT_URL }}
       QDRANT_API_KEY: ${{ secrets.QDRANT_API_KEY }}

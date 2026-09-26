@@ -50,6 +50,7 @@ def index_all(reindex: bool = False) -> None:
                     for c, v in zip(batch, vectors)
                 ],
             )
+            print(f"  {min(i + BATCH, len(chunks))}/{len(chunks)}")
 
 
 if __name__ == "__main__":

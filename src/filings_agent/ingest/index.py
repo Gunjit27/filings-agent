@@ -6,7 +6,7 @@ from qdrant_client import models
 
 from filings_agent.config import settings
 from filings_agent.ingest.parse import parse_pdf
-from filings_agent.retrieval import embedder, qdrant
+from filings_agent.retrieval import embedder, list_documents, qdrant
 
 BATCH = 64
 
@@ -22,12 +22,17 @@ def ensure_collection() -> None:
     )
     for field in ("company", "fy", "doc_type", "doc_id"):
         client.create_payload_index(settings.qdrant_collection, field, "keyword")
+    client.create_payload_index(settings.qdrant_collection, "page", "integer")
 
 
-def index_all() -> None:
+def index_all(reindex: bool = False) -> None:
     ensure_collection()
     client = qdrant()
+    done = set() if reindex else set(list_documents())
     for pdf in sorted((settings.data_dir / "raw").glob("*_annual_report.pdf")):
+        if pdf.stem in done:
+            print(f"{pdf.name}: already indexed, skipping")
+            continue
         company, fy, _ = pdf.stem.split("_", 2)
         chunks = parse_pdf(pdf, company, fy)
         print(f"{pdf.name}: {len(chunks)} chunks")
@@ -48,4 +53,6 @@ def index_all() -> None:
 
 
 if __name__ == "__main__":
-    index_all()
+    import sys
+
+    index_all(reindex="--reindex" in sys.argv)

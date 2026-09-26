@@ -1,0 +1,38 @@
+name: Ingest filings
+
+# Downloads the annual reports in config/companies.yaml and indexes new ones into Qdrant Cloud.
+on:
+  workflow_dispatch:
+    inputs:
+      reindex:
+        description: Re-embed documents that are already indexed
+        type: boolean
+        default: false
+  push:
+    branches: [main]
+    paths: [config/companies.yaml]
+
+jobs:
+  ingest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      QDRANT_URL: ${{ secrets.QDRANT_URL }}
+      QDRANT_API_KEY: ${{ secrets.QDRANT_API_KEY }}
+      FASTEMBED_CACHE_PATH: /home/runner/.cache/fastembed
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - name: Require Qdrant secrets
+        run: |
+          if [ -z "$QDRANT_URL" ]; then
+            echo "::error::Add QDRANT_URL and QDRANT_API_KEY as repository secrets first."
+            exit 1
+          fi
+      - uses: actions/cache@v4
+        with:
+          path: /home/runner/.cache/fastembed
+          key: fastembed-bge-small-en-v1.5
+      - run: uv sync
+      - run: uv run python -m filings_agent.ingest.download
+      - run: uv run python -m filings_agent.ingest.index ${{ inputs.reindex && '--reindex' || '' }}

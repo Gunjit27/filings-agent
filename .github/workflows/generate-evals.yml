@@ -1,0 +1,26 @@
+name: Draft eval questions
+
+# Drafts candidate questions from the indexed filings and uploads them as an artifact for review.
+on:
+  workflow_dispatch:
+    inputs:
+      per_doc:
+        description: Questions to draft per document
+        default: "6"
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    env:
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      QDRANT_URL: ${{ secrets.QDRANT_URL }}
+      QDRANT_API_KEY: ${{ secrets.QDRANT_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - run: uv sync
+      - run: uv run python -m evals.generate --per-doc ${{ inputs.per_doc }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: eval-candidates
+          path: evals/candidates.jsonl

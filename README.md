@@ -27,3 +27,13 @@ python -m filings_agent.cli "How did TCS's attrition change from FY25 to FY26?"
 ```
 
 Companies in scope are listed in `config/companies.yaml`; edit it and re-run ingest to change them.
+
+## GitHub Actions
+
+| Workflow | Trigger | What it does |
+|---|---|---|
+| CI | every push and PR | ruff, pytest; on PRs also runs the eval set and comments the score table |
+| Ingest filings | manual, or a change to `config/companies.yaml` | downloads new reports and indexes them into Qdrant Cloud |
+| Draft eval questions | manual | drafts candidate questions from indexed pages for human review |
+
+Required repository secrets: `GEMINI_API_KEY`, `QDRANT_URL`, `QDRANT_API_KEY`.

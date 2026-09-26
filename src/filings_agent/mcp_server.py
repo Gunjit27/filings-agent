@@ -13,7 +13,7 @@ def search_filings(
 ) -> list[dict]:
     """Semantic search over Indian company filings.
 
-    company: company id such as TCS, INFY, RELIANCE. fy: FY24 or FY25.
+    company: company id such as TCS, INFY, RELIANCE. fy: FY25 or FY26.
     Returns chunks with chunk_id, doc_id, page and text. Cite chunk_id in answers.
     """
     return retrieval.search(query, company=company, fy=fy, doc_type=doc_type)

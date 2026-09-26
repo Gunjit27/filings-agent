@@ -1,13 +1,40 @@
 # Companies in scope. bse_code is the BSE scrip code.
-# annual_reports: fill with direct PDF URLs (company IR or BSE) per fiscal year.
+# annual_reports: direct PDF URLs per fiscal year. Empty entries are skipped by the downloader;
+# you can also drop a PDF into data/raw/ named <ID>_<FY>_annual_report.pdf by hand.
+# Some companies (e.g. ITC) publish the report in several PDFs; those are still to do.
 companies:
-  - {id: RELIANCE,   name: Reliance Industries,  bse_code: 500325, annual_reports: {FY24: "", FY25: ""}}
-  - {id: TCS,        name: Tata Consultancy Services, bse_code: 532540, annual_reports: {FY24: "", FY25: ""}}
-  - {id: INFY,       name: Infosys,              bse_code: 500209, annual_reports: {FY24: "", FY25: ""}}
-  - {id: HDFCBANK,   name: HDFC Bank,            bse_code: 500180, annual_reports: {FY24: "", FY25: ""}}
-  - {id: ICICIBANK,  name: ICICI Bank,           bse_code: 532174, annual_reports: {FY24: "", FY25: ""}}
-  - {id: ITC,        name: ITC,                  bse_code: 500875, annual_reports: {FY24: "", FY25: ""}}
-  - {id: LT,         name: Larsen & Toubro,      bse_code: 500510, annual_reports: {FY24: "", FY25: ""}}
-  - {id: BHARTIARTL, name: Bharti Airtel,        bse_code: 532454, annual_reports: {FY24: "", FY25: ""}}
-  - {id: HINDUNILVR, name: Hindustan Unilever,   bse_code: 500696, annual_reports: {FY24: "", FY25: ""}}
-  - {id: TATAMOTORS, name: Tata Motors,          bse_code: 500570, annual_reports: {FY24: "", FY25: ""}}
+  - id: RELIANCE
+    name: Reliance Industries
+    bse_code: 500325
+    annual_reports:
+      FY25: ""
+      FY26: https://www.ril.com/reports/RIL-Integrated-Annual-Report-2025-26.pdf
+  - id: TCS
+    name: Tata Consultancy Services
+    bse_code: 532540
+    annual_reports:
+      FY25: https://www.tcs.com/content/dam/tcs/investor-relations/financial-statements/2024-25/ar/annual-report-2024-2025.pdf
+      FY26: https://www.tcs.com/content/dam/tcs/investor-relations/financial-statements/2025-26/ar/annual-report-2025-2026.pdf
+  - id: INFY
+    name: Infosys
+    bse_code: 500209
+    annual_reports:
+      FY25: https://www.infosys.com/investors/reports-filings/annual-report/annual/documents/infosys-ar-25.pdf
+      FY26: https://www.infosys.com/investors/reports-filings/annual-report/annual/documents/infosys-ar-26.pdf
+  - id: HDFCBANK
+    name: HDFC Bank
+    bse_code: 500180
+    annual_reports:
+      FY25: ""
+      FY26: https://www.hdfc.bank.in/content/dam/hdfcbankpws/in/en/pdf/annual-reports/2025-26/reports/HDFC_Bank_IR26.pdf
+  - id: ICICIBANK
+    name: ICICI Bank
+    bse_code: 532174
+    annual_reports:
+      FY25: https://www.icici.bank.in/content/dam/icicibank/managed-assets/docs/investor/annual-reports/2025/icici-bank-ar-2025.pdf
+      FY26: ""
+  - {id: ITC,        name: ITC,                bse_code: 500875, annual_reports: {FY25: "", FY26: ""}}
+  - {id: LT,         name: Larsen & Toubro,    bse_code: 500510, annual_reports: {FY25: "", FY26: ""}}
+  - {id: BHARTIARTL, name: Bharti Airtel,      bse_code: 532454, annual_reports: {FY25: "", FY26: ""}}
+  - {id: HINDUNILVR, name: Hindustan Unilever, bse_code: 500696, annual_reports: {FY25: "", FY26: ""}}
+  - {id: TATAMOTORS, name: Tata Motors,        bse_code: 500570, annual_reports: {FY25: "", FY26: ""}}

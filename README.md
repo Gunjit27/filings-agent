@@ -23,7 +23,7 @@ uv sync --extra dev
 cp .env.example .env            # add GEMINI_API_KEY
 python -m filings_agent.ingest.download
 python -m filings_agent.ingest.index
-python -m filings_agent.cli "How did TCS's attrition change from FY24 to FY25?"
+python -m filings_agent.cli "How did TCS's attrition change from FY25 to FY26?"
 ```
 
 Companies in scope are listed in `config/companies.yaml`; edit it and re-run ingest to change them.

@@ -3,11 +3,11 @@
 Draft built on the defaults proposed in the thread. Changes once the user answers.
 
 ## What it does
-Ask a question about an Indian listed company ("How did TCS's attrition change FY24 to FY25?", "What related-party transactions did Reliance disclose?") and get an answer where every claim cites a filing, page and quote.
+Ask a question about an Indian listed company ("How did TCS's attrition change FY25 to FY26?", "What related-party transactions did Reliance disclose?") and get an answer where every claim cites a filing, page and quote.
 
 ## Scope (default)
 - 10 Nifty 50 companies: Reliance, TCS, Infosys, HDFC Bank, ICICI Bank, ITC, L&T, Bharti Airtel, HUL, Tata Motors.
-- FY24 + FY25 annual reports (PDF, from company IR / BSE) plus BSE corporate announcements for the last 12 months.
+- FY25 + FY26 annual reports (PDF, from company IR / BSE) plus BSE corporate announcements for the last 12 months.
 
 ## Architecture
 ```

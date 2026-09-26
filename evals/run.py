@@ -12,6 +12,7 @@ import argparse
 import asyncio
 import json
 import random
+import re
 import statistics
 import time
 from pathlib import Path
@@ -38,8 +39,13 @@ async def judge(q: dict, answer: str) -> bool:
         model=settings.judge_model,
         messages=[{"role": "user", "content": prompt}],
         temperature=0,
+        # Groq's free tier caps output tokens per minute, and a request is refused
+        # outright if its expected output exceeds the cap, so keep the verdict short.
+        max_tokens=512,
+        reasoning_effort="low",
     )
-    return resp.choices[0].message.content.strip().upper().startswith("YES")
+    verdict = re.sub(r"<think>.*?</think>", "", resp.choices[0].message.content or "", flags=re.DOTALL)
+    return verdict.strip().upper().startswith("YES")
 
 
 def load_questions(sample: int | None, seed: int) -> list[dict]:

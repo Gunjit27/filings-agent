@@ -92,3 +92,8 @@ def test_cost_uses_requested_model_name(monkeypatch):
     with llm.track("q") as usage:
         llm.completion(model="groq/openai/gpt-oss-20b", messages=[])
     assert usage["cost_usd"] > 0
+
+
+def test_request_too_large_is_not_retried():
+    assert not llm.retryable(Exception("Request too large for model on output tokens per minute"))
+    assert llm.retryable(Exception("Rate limit reached, please try again in 2s"))

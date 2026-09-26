@@ -97,6 +97,11 @@ def _reserve_slot() -> float:
         return start - now
 
 
+def retryable(err: Exception) -> bool:
+    """A request bigger than a per-minute cap fails the same way on every retry."""
+    return "request too large" not in str(err).lower()
+
+
 def retry_delay(err: Exception) -> float:
     """Seconds to wait after a transient error, using the provider's hint when it gives one."""
     match = re.search(r"retry in ([\d.]+)s", str(err)) or re.search(
@@ -122,7 +127,7 @@ def completion(**kwargs):
             _record(resp, params["model"])
             return resp
         except TRANSIENT as err:
-            if attempt == settings.llm_retries:
+            if attempt == settings.llm_retries or not retryable(err):
                 raise
             wait = retry_delay(err)
             _add_wait(wait)
@@ -140,7 +145,7 @@ async def acompletion(**kwargs):
             _record(resp, params["model"])
             return resp
         except TRANSIENT as err:
-            if attempt == settings.llm_retries:
+            if attempt == settings.llm_retries or not retryable(err):
                 raise
             wait = retry_delay(err)
             _add_wait(wait)

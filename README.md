@@ -17,8 +17,8 @@ _Pending the first full run._
 
 20 hand-verified questions (`evals/questions.jsonl`): 15 single-fact lookups, 3 year-over-year
 comparisons and 2 questions the filings can't answer, where the right response is a refusal.
-Each expected answer was checked against the page it came from. An LLM judge from a different
-model family (Qwen) grades answers; `Cited right doc` checks that a citation points at the filing
+Each expected answer was checked against the page it came from. A larger model (gpt-oss-120b)
+compares each answer with the expected one; `Cited right doc` checks that a citation points at the filing
 that holds the answer.
 
 ## How it works

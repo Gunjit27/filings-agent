@@ -11,7 +11,7 @@ class Settings(BaseSettings):
 
     llm_model: str = "groq/openai/gpt-oss-20b"
     # A different model family grades answers, so the judge does not favour its own phrasing.
-    judge_model: str = "groq/qwen/qwen3.8-27b"
+    judge_model: str = "groq/openai/gpt-oss-120b"
     qdrant_url: str = ""
     qdrant_api_key: str = ""
     qdrant_collection: str = "filings"

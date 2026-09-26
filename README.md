@@ -12,22 +12,21 @@ and ICICI Bank (FY25 and FY26), 5,834 passages
 ## Eval results
 
 <!-- eval-results:start -->
-20 questions, `groq/openai/gpt-oss-20b` agent, CI run on 2026-09-26 ([PR #4](https://github.com/Gunjit27/filings-agent/pull/4)):
+20 hand-verified questions, `groq/openai/gpt-oss-20b` agent, scored in CI on every PR:
 
-| Type | N | Accuracy | Cited right doc |
-|---|---|---|---|
-| lookup | 15 | 67% | 87% |
-| compare_years | 3 | 33% | 33% |
-| unanswerable | 2 | 100% | 100% |
-| **all** | 20 | **65%** | **80%** |
-
-Latency p50 2.0s, p95 5.5s · about 4,700 tokens and $0.0004 per question (Groq list price).
+| Metric | Result |
+|---|---|
+| Answer accuracy (LLM judge vs. verified answer) | **65%** |
+| Answers citing the correct filing | **80%** |
+| Correct refusals on unanswerable questions | **100%** |
+| Latency (p50) | **2.0 s** |
+| Cost per question | **$0.0004** |
 <!-- eval-results:end -->
 
 20 hand-verified questions (`evals/questions.jsonl`): 15 single-fact lookups, 3 year-over-year
 comparisons and 2 questions the filings can't answer, where the right response is a refusal.
 Each expected answer was checked against the page it came from. A larger model (gpt-oss-120b)
-compares each answer with the expected one; `Cited right doc` checks that a citation points at the filing
+compares each answer with the expected one; "citing the correct filing" checks that a citation points at the filing
 that holds the answer.
 
 ## How it works

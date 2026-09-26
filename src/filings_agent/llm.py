@@ -65,18 +65,24 @@ def _add_wait(seconds: float) -> None:
         usage["wait_s"] += seconds
 
 
-def _record(resp) -> None:
+def _record(resp, model: str) -> None:
     usage = _usage.get()
     if usage is None:
         return
     usage["calls"] += 1
-    if resp.usage:
-        usage["prompt_tokens"] += resp.usage.prompt_tokens or 0
-        usage["completion_tokens"] += resp.usage.completion_tokens or 0
+    prompt = (resp.usage.prompt_tokens or 0) if resp.usage else 0
+    completion = (resp.usage.completion_tokens or 0) if resp.usage else 0
+    usage["prompt_tokens"] += prompt
+    usage["completion_tokens"] += completion
+    # Price by the model we asked for: responses name it without the provider prefix
+    # (openai/gpt-oss-20b rather than groq/openai/gpt-oss-20b), which LiteLLM can't price.
     try:
-        usage["cost_usd"] += litellm.completion_cost(completion_response=resp)
+        prompt_cost, completion_cost = litellm.cost_per_token(
+            model=model, prompt_tokens=prompt, completion_tokens=completion
+        )
+        usage["cost_usd"] += prompt_cost + completion_cost
     except Exception as err:  # noqa: BLE001 - LiteLLM raises bare Exception for unpriced models
-        log.debug("no price for %s: %s", resp.model if hasattr(resp, "model") else "?", err)
+        log.debug("no price for %s: %s", model, err)
 
 
 def _reserve_slot() -> float:
@@ -111,8 +117,9 @@ def completion(**kwargs):
         _add_wait(wait)
         time.sleep(wait)
         try:
-            resp = litellm.completion(**_defaults(kwargs))
-            _record(resp)
+            params = _defaults(kwargs)
+            resp = litellm.completion(**params)
+            _record(resp, params["model"])
             return resp
         except TRANSIENT as err:
             if attempt == settings.llm_retries:
@@ -128,8 +135,9 @@ async def acompletion(**kwargs):
         _add_wait(wait)
         await asyncio.sleep(wait)
         try:
-            resp = await litellm.acompletion(**_defaults(kwargs))
-            _record(resp)
+            params = _defaults(kwargs)
+            resp = await litellm.acompletion(**params)
+            _record(resp, params["model"])
             return resp
         except TRANSIENT as err:
             if attempt == settings.llm_retries:

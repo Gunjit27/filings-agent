@@ -12,7 +12,16 @@ and ICICI Bank (FY25 and FY26), 5,834 passages
 ## Eval results
 
 <!-- eval-results:start -->
-_Pending the first full run._
+20 questions, `groq/openai/gpt-oss-20b` agent, CI run on 2026-09-26 ([PR #4](https://github.com/Gunjit27/filings-agent/pull/4)):
+
+| Type | N | Accuracy | Cited right doc |
+|---|---|---|---|
+| lookup | 15 | 67% | 87% |
+| compare_years | 3 | 33% | 33% |
+| unanswerable | 2 | 100% | 100% |
+| **all** | 20 | **65%** | **80%** |
+
+Latency p50 2.0s, p95 5.5s · about 4,700 tokens and $0.0004 per question (Groq list price).
 <!-- eval-results:end -->
 
 20 hand-verified questions (`evals/questions.jsonl`): 15 single-fact lookups, 3 year-over-year

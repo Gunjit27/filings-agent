@@ -1,6 +1,7 @@
 """LangGraph agent: tool loop over the MCP server, then citation verification."""
 
 import json
+import os
 import re
 import sys
 from contextlib import asynccontextmanager
@@ -91,7 +92,11 @@ def build_graph(session: ClientSession, tools: list[dict]):
 
 @asynccontextmanager
 async def agent_session():
-    params = StdioServerParameters(command=sys.executable, args=["-m", "filings_agent.mcp_server"])
+    # The MCP SDK hands stdio servers only a minimal env (HOME, PATH) by default,
+    # so pass ours through or the server can't see QDRANT_URL and its API key.
+    params = StdioServerParameters(
+        command=sys.executable, args=["-m", "filings_agent.mcp_server"], env=dict(os.environ)
+    )
     async with stdio_client(params) as (read, write), ClientSession(read, write) as session:
         await session.initialize()
         tools = mcp_tools_to_openai((await session.list_tools()).tools)

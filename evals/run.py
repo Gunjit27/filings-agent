@@ -75,7 +75,8 @@ async def main(sample: int | None, seed: int) -> None:
                     "answer": result["answer"],
                 }
             )
-            print(f"[{i}/{len(questions)}] {q['id']} correct={correct} {latency:.1f}s")
+            snippet = " ".join((result["answer"] or "").split())[:120]
+            print(f"[{i}/{len(questions)}] {q['id']} correct={correct} {latency:.1f}s | {snippet}")
     out = HERE / "results"
     out.mkdir(exist_ok=True)
     (out / "results.json").write_text(json.dumps(rows, indent=2, ensure_ascii=False))

@@ -19,7 +19,7 @@ runs on the same code, because single runs vary by a few questions.
 |---|---|
 | Answer accuracy (LLM judge vs. verified answer) | 73% (runs: 70%, 75%) |
 | Answers citing the correct filing | 83% |
-| Correct refusals on unanswerable questions | 100% (2 of 2) |
+| Correct refusals on unanswerable questions | 100% |
 | Latency (p50) | 4.4 s |
 | Cost per question | $0.0004 |
 <!-- eval-results:end -->

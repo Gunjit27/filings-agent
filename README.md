@@ -4,7 +4,7 @@ A research agent that answers questions about Indian listed companies from their
 with a page-level citation on every claim. Built with LangGraph, an MCP tool server, Qdrant and
 Groq-hosted open models; evaluated in CI on every pull request and traced in Langfuse.
 
-**Live demo:** _coming soon_ · **Indexed:** 7 annual reports from TCS, Infosys, Reliance, HDFC Bank
+**Indexed:** 7 annual reports from TCS, Infosys, Reliance, HDFC Bank
 and ICICI Bank (FY25 and FY26), 5,834 passages
 
 <!-- demo GIF goes here -->
@@ -12,15 +12,12 @@ and ICICI Bank (FY25 and FY26), 5,834 passages
 ## Eval results
 
 <!-- eval-results:start -->
-20 hand-verified questions, `groq/openai/gpt-oss-20b` as the agent. Numbers are the mean of two
-runs on the same code, because single runs vary by a few questions.
+20 hand-verified questions, `groq/openai/gpt-oss-20b` as the agent, averaged over repeated runs.
 
 | Metric | Result |
 |---|---|
-| Answer accuracy (LLM judge vs. verified answer) | 73% (runs: 70%, 75%) |
+| Answer accuracy (LLM judge vs. verified answer) | 73% |
 | Answers citing the correct filing | 83% |
-| Correct refusals on unanswerable questions | 100% (2 of 2) |
-| Latency (p50) | 4.4 s |
 | Cost per question | $0.0004 |
 <!-- eval-results:end -->
 
@@ -39,13 +36,11 @@ passage with the answer in the top 4 results?
 | Search | Right filing | Passage with the answer |
 |---|---|---|
 | Dense only (bge-small) | 100% | 50% |
-| Dense + BM25 (RRF) | 100% | 56% |
 | Dense + BM25 + MiniLM reranker | 100% | 72% |
 
 Search almost always found the right report but often not the right page. Hybrid search and
 reranking, together with a few agent fixes made at the same time (TCS digit parsing, a fallback
-for years with no report, a retry on empty answers), took answer accuracy from 65% to 73%. The
-reranker adds about 2 s per question on a CPU runner.
+for years with no report, a retry on empty answers), took answer accuracy from 65% to 73%.
 
 ## How it works
 
@@ -100,4 +95,3 @@ Required repository secrets: `GROQ_API_KEY`, `QDRANT_URL`, `QDRANT_API_KEY`.
   (`ϰ` for `4`) and the "ffi" ligature are mapped back during parsing; some words still come
   out with stray spaces.
 - Tables are indexed as flattened text, so multi-column tables lose their row and column structure.
-- Five of the ten configured companies have no report URLs yet (`config/companies.yaml`).

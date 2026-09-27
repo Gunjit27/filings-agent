@@ -12,12 +12,15 @@ and ICICI Bank (FY25 and FY26), 5,834 passages
 ## Eval results
 
 <!-- eval-results:start -->
-20 hand-verified questions, `groq/openai/gpt-oss-20b` as the agent, averaged over repeated runs.
+20 hand-verified questions, `groq/openai/gpt-oss-20b` as the agent. Numbers are the mean of two
+runs on the same code, because single runs vary by a few questions.
 
 | Metric | Result |
 |---|---|
-| Answer accuracy (LLM judge vs. verified answer) | 73% |
+| Answer accuracy (LLM judge vs. verified answer) | 73% (runs: 70%, 75%) |
 | Answers citing the correct filing | 83% |
+| Correct refusals on unanswerable questions | 100% (2 of 2) |
+| Latency (p50) | 4.4 s |
 | Cost per question | $0.0004 |
 <!-- eval-results:end -->
 
@@ -40,7 +43,8 @@ passage with the answer in the top 4 results?
 
 Search almost always found the right report but often not the right page. Hybrid search and
 reranking, together with a few agent fixes made at the same time (TCS digit parsing, a fallback
-for years with no report, a retry on empty answers), took answer accuracy from 65% to 73%.
+for years with no report, a retry on empty answers), took answer accuracy from 65% to 73%. The
+reranker adds about 2 s per question on a CPU runner.
 
 ## How it works
 

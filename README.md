@@ -4,7 +4,7 @@ A research agent that answers questions about Indian listed companies from their
 with a page-level citation on every claim. Built with LangGraph, an MCP tool server, Qdrant and
 Groq-hosted open models; evaluated in CI on every pull request and traced in Langfuse.
 
-**Live demo:** _coming soon_ · **Indexed:** 7 annual reports from TCS, Infosys, Reliance, HDFC Bank
+**Indexed:** 7 annual reports from TCS, Infosys, Reliance, HDFC Bank
 and ICICI Bank (FY25 and FY26), 5,834 passages
 
 <!-- demo GIF goes here -->
@@ -39,7 +39,6 @@ passage with the answer in the top 4 results?
 | Search | Right filing | Passage with the answer |
 |---|---|---|
 | Dense only (bge-small) | 100% | 50% |
-| Dense + BM25 (RRF) | 100% | 56% |
 | Dense + BM25 + MiniLM reranker | 100% | 72% |
 
 Search almost always found the right report but often not the right page. Hybrid search and
@@ -100,4 +99,3 @@ Required repository secrets: `GROQ_API_KEY`, `QDRANT_URL`, `QDRANT_API_KEY`.
   (`ϰ` for `4`) and the "ffi" ligature are mapped back during parsing; some words still come
   out with stray spaces.
 - Tables are indexed as flattened text, so multi-column tables lose their row and column structure.
-- Five of the ten configured companies have no report URLs yet (`config/companies.yaml`).
